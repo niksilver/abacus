@@ -37,6 +37,9 @@ local Formatters=require 'formatters'
 -- globals
 --
 
+zamples = {}
+Zmp = {}
+
 -- user state
 us={
   mode=0,-- 0=sampler,1=pattern,2==chain
@@ -398,13 +401,7 @@ function initialize_samples()
     chain={1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
   }
   -- initialize samples
-  local alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-  for i=1,26 do
-    up.samples[i]={}
-    up.samples[i].start=0
-    up.samples[i].length=0
-    up.samples[i].name=alphabet:sub(i,i)
-  end
+  zamples.wipe_all()
   for i=1,8 do
     up.patterns[i]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
   end
@@ -420,8 +417,7 @@ function update_positions(i,x)
 end
 
 function update_render(ch,start,i,s)
-  us.waveform_samples=s
-  us.interval=i
+  zamples.set_waveform(i, s)
   us.update_ui=true
 end
 
@@ -470,7 +466,8 @@ function update_beat()
       -- if silence, continue
       local playing_pattern_segment=p[us.playing_beat]
       -- get sample id from the pattern segment
-      local sample_id=math.floor(playing_pattern_segment)
+      -- local sample_id=math.floor(playing_pattern_segment)
+      local p_sample=Zmp:new(math.floor(playing_pattern_segment))
 
       -- do effects
       effect_slow=us.effect_slow or math.random()<params:get("effect_slow")
@@ -490,8 +487,8 @@ function update_beat()
         us.effect_on=false
         us.effect_stutter=false
         us.effect_reverse=false
-        if us.playing_sampleid>0 then
-          local pos=up.samples[us.playing_sampleid].start
+        if zamples.is_sample_playing() then
+          local pos=zamples.playing_sample().start
           rate=1
           softcut.loop(3,1)
           if effect_stutter then
@@ -525,14 +522,13 @@ function update_beat()
           softcut.level(3,0)
         end
       elseif not us.effect_on then
-        if sample_id==0 then
+        if not p_sample:is_real() then
           if current_level==1 then
             current_level=0
             softcut.level(1,0)
           end
           us.playing_pattern_segment=0
-          us.playing_sample={0,0}
-          us.playing_sampleid=0
+          zamples.reset_playing_sample()
           return
         end
         if playing_pattern_segment==us.playing_pattern_segment then
@@ -540,14 +536,12 @@ function update_beat()
         end
         us.playing_pattern_segment=playing_pattern_segment
         -- play sample
-        local sample_start=up.samples[sample_id].start
-        if up.samples[sample_id].start+up.samples[sample_id].length~=us.playing_loop_end then
-          us.playing_loop_end=up.samples[sample_id].start+up.samples[sample_id].length
+        if p_sample:endd()~=us.playing_loop_end then
+          us.playing_loop_end=p_sample:endd()
           --  softcut.loop_end(1,us.playing_loop_end)
         end
-        us.playing_sampleid=sample_id
-        us.playing_sample={up.samples[sample_id].start,us.playing_loop_end}
-        softcut.position(1,up.samples[sample_id].start)
+        zamples.set_playing_sample(p_sample)
+        softcut.position(1,p_sample:start())
         if current_level==0 then
           current_level=1
           softcut.level(1,1)
@@ -599,7 +593,7 @@ function sample_one_shot(z)
     -- stop looping
     us.one_shot=false
     softcut.loop(2,0)
-    us.playing_sample={0,0}
+    zamples.reset_playing_sample()
   else
     us.one_shot=true
     sample_one_shot_update()
@@ -612,9 +606,9 @@ end
 
 function sample_one_shot_update()
   if not us.one_shot then do return end end
-local s=up.samples[us.sample_cur].start
-  local e=up.samples[us.sample_cur].start+up.samples[us.sample_cur].length
-  us.playing_sample={s,e}
+  local s=zamples.current:start()
+  local e=zamples.current:endd()
+  zamples.set_playing_sample(zamples.current)
   softcut.position(2,s)
   softcut.loop_start(2,s)
   softcut.loop_end(2,e)
@@ -652,50 +646,45 @@ function enc(n,d)
     us.mode=util.clamp(us.mode+sign(d),0,2)
     if us.mode==1 then
       -- figure out which samples are usable
-      us.samples_usable={}
-      for i=1,#up.samples do
-        if up.samples[i].length>0 then
-          table.insert(us.samples_usable,i)
-        end
-      end
-      us.pattern_temp.length=util.round(up.samples[us.sample_cur].length/(clock.get_beat_sec()/4))
+      zamples.set_usable()
+      us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
     end
   elseif n==1 and us.mode==0 then
-    us.sample_cur=util.clamp(us.sample_cur+sign(d),1,26)
+    zamples.set_current( util.clamp(us.sample_cur+sign(d),1,26) )
   elseif n==1 and us.mode==1 then
     -- change pattern
     us.pattern_cur=util.clamp(us.pattern_cur+sign(d),1,8)
   elseif n==2 and us.mode==0 then
     local x=d*up.length/1000
-    up.samples[us.sample_cur].start=util.clamp(up.samples[us.sample_cur].start+x,0,up.length)
-    if up.samples[us.sample_cur].length==0 then
+    up.samples[us.sample_cur].start=util.clamp(zamples.current:start()+x,0,up.length)
+    if zamples.current:length()==0 then
       up.samples[us.sample_cur].length=clock.get_beat_sec()/4
-      up.samples[us.sample_cur].start=util.clamp(up.samples[us.sample_cur].start,us.waveform_view[1],up.length)
+      up.samples[us.sample_cur].start=util.clamp(zamples.current:start(),us.waveform_view[1],up.length)
     end
-    local new_end=up.samples[us.sample_cur].start+up.samples[us.sample_cur].length
-    if up.samples[us.sample_cur].start<us.waveform_view[1] then
-      update_waveform_view(up.samples[us.sample_cur].start,us.waveform_view[2]+(up.samples[us.sample_cur].start-us.waveform_view[1]))
+    local new_end=zamples.current:endd()
+    if zamples.current:start()<us.waveform_view[1] then
+      update_waveform_view(zamples.current:start(),us.waveform_view[2]+(zamples.current:start()-us.waveform_view[1]))
     elseif new_end>us.waveform_view[2] then
-      update_waveform_view(us.waveform_view[1]+(new_end-us.waveform_view[2]),up.samples[us.sample_cur].start+up.samples[us.sample_cur].length)
+      update_waveform_view(us.waveform_view[1]+(new_end-us.waveform_view[2]),new_end)
     end
     sample_one_shot_update()
   elseif n==3 and us.mode==0 then
     -- local x=d*clock.get_beat_sec()/4
     local x=d*up.length/1000
-    up.samples[us.sample_cur].length=util.clamp(up.samples[us.sample_cur].length+x,0,up.length-up.samples[us.sample_cur].start)
-    if up.samples[us.sample_cur].start+up.samples[us.sample_cur].length>us.waveform_view[2] then
-      update_waveform_view(up.samples[us.sample_cur].start,up.samples[us.sample_cur].start+up.samples[us.sample_cur].length)
+    up.samples[us.sample_cur].length=util.clamp(zamples.current:length()+x,0,up.length-zamples.current:start())
+    if zamples.current:endd() > us.waveform_view[2] then
+      update_waveform_view(zamples.current:start(),zamples.current:endd())
     end
-    us.pattern_temp.length=util.round(up.samples[us.sample_cur].length/(clock.get_beat_sec()/4))
+    us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
     sample_one_shot_update()
   elseif n==2 and us.mode==1 then
     us.samples_usable_id=util.clamp(us.samples_usable_id+sign(d),1,#us.samples_usable)
-    us.sample_cur=us.samples_usable[us.samples_usable_id]
-    us.pattern_temp.length=util.round(up.samples[us.sample_cur].length/(clock.get_beat_sec()/4))
+    zamples.set_current(us.samples_usable[us.samples_usable_id])
+    us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
   elseif n==3 and us.mode==1 then
     -- change start position
     us.pattern_temp.start=util.clamp(us.pattern_temp.start+sign(d),1,16)
-    us.pattern_temp.length=util.round(up.samples[us.sample_cur].length/(clock.get_beat_sec()/4))
+    us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
   elseif n==2 and us.mode==2 then
     local last_chain=1
     for i=1,#up.chain do
@@ -742,7 +731,7 @@ function key(n,z)
     end
     us.playing_chain=0
     us.playing_loop_end=0
-    us.playing_sample={0,0}
+    zamples.reset_playing_sample()
     us.playing_beat=17
     us.playing_pattern=1
     if us.mode==1 then
@@ -751,11 +740,11 @@ function key(n,z)
     end
     us.playing=not us.playing
   elseif n==2 and z==1 and us.mode==0 then
-    if up.samples[us.sample_cur].start==us.waveform_view[1] and up.samples[us.sample_cur].start+up.samples[us.sample_cur].length==us.waveform_view[2] then
+    if zamples.current:start()==us.waveform_view[1] and zamples.current:endd()==us.waveform_view[2] then
       update_waveform_view(0,up.length)
     else
-      print("zooming to "..up.samples[us.sample_cur].start..","..up.samples[us.sample_cur].start+up.samples[us.sample_cur].length)
-      update_waveform_view(up.samples[us.sample_cur].start,up.samples[us.sample_cur].start+up.samples[us.sample_cur].length)
+      print("zooming to "..zamples.current:start()..","..zamples.current:endd())
+      update_waveform_view(zamples.current:start(),zamples.current:endd())
     end
   elseif n==2 and z==1 and us.mode==1 and us.shift then
     -- make new pattern
@@ -793,7 +782,7 @@ function redraw()
   screen.rect(1+shift_amount,1+shift_amount,7,8)
   screen.stroke()
   screen.move(2+shift_amount,7+shift_amount)
-  screen.text(up.samples[us.sample_cur].name)
+  screen.text(zamples.current:name())
 
   -- show pattern info
   if us.mode==1 then
@@ -902,7 +891,7 @@ function redraw()
     for i,s in ipairs(us.waveform_samples) do
       local height=util.round(math.abs(s)*scale)
       local current_time=util.linlin(0,128,us.waveform_view[1],us.waveform_view[2],x_pos)
-      if current_time>us.playing_sample[1] and current_time<us.playing_sample[2] then
+      if current_time>zamples.playing_sample_start() and current_time<zamples.playing_sample_end() then
         screen.level(15)
       else
         screen.level(4)
@@ -1122,3 +1111,143 @@ function show_beat_counter()
 
   screen.update()
 end
+
+-- zamples is just a collection of handy sample-oriented functions.
+
+zamples = {}
+
+--- Wipe all the samples in the user parameters.
+--
+zamples.wipe_all = function()
+  local alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  for i=1,26 do
+    up.samples[i]={}
+    up.samples[i].start=0
+    up.samples[i].length=0
+    up.samples[i].name=alphabet:sub(i,i)
+  end
+end
+
+--- Set the waveform to be rendered when the screen is
+-- next updated
+-- @tparam number i    Duration of the sample in seconds.
+-- @tparam table s    A table of values from -1 to 1.
+-- @see https://monome.org/docs/norns/softcut/#8-copy--waveform-data
+--
+zamples.set_waveform = function(i, s)
+  us.waveform_samples=s
+  us.interval=i
+end
+
+--- Is a sample playing?
+-- @return {bool}
+--
+zamples.is_sample_playing = function()
+  return us.playing_sampleid > 0
+end
+
+--- Get the current playing sample.
+-- @treturn {table}    A table with keys start, length and name.
+--
+zamples.playing_sample = function()
+  return up.samples[us.playing_sampleid]
+end
+
+--- Note that no sample is currently being played.
+--
+zamples.reset_playing_sample = function()
+  us.playing_sample={0,0}    -- Start and end point
+  us.playing_sampleid=0
+end
+
+--- Note that a given sample is currently being played (or to be played).
+-- @tparam Zmp z   A Zmp object, representing a sample with an id.
+--
+zamples.set_playing_sample = function(z)
+  us.playing_sampleid=z.id
+  us.playing_sample={ z:start(), z:endd() }
+end
+
+--- Get the start of the playing sample.
+-- @treturn {number}
+--
+zamples.playing_sample_start = function()
+  return us.playing_sample[1]
+end
+
+--- Get the end of the playing sample.
+-- @treturn {number}
+--
+zamples.playing_sample_end = function()
+  return us.playing_sample[2]
+end
+
+--- Set the usable samples - ie those which have some positive length.
+--
+zamples.set_usable = function()
+  us.samples_usable={}
+  for i=1,#up.samples do
+    if up.samples[i].length>0 then
+      table.insert(us.samples_usable,i)
+    end
+  end
+end
+
+--- Set the current sample.
+-- After this, zamples.current will the the Zmp of the given sample.
+-- @tparam number i    The ID of the sample.
+--
+zamples.set_current = function(i)
+  -- This is inviting error... we're duplicating the storage of the
+  -- sample. It's an object in zamples, and a number in the user state.
+  zamples.current = Zmp:new(i)
+  us.sample_cur = i
+end
+
+-- Convenient representation of a single sample.
+--
+Zmp = {}
+
+--- Create a convenient representation of sample with a given id.
+-- @tparam number i   ID of the sample. If i is given as 0 then
+--     nothing much can be gained other than referring to the id.
+--
+function Zmp:new(i)
+  obj = { id = i }
+  self.__index = self
+  return setmetatable(obj, self)
+end
+
+--- Is this a real sample?. It won't be if we were given ID 0.
+-- @treturn {boolean}
+--
+function Zmp:is_real()
+  return self.id > 0
+end
+
+--- Get the start of the sample.
+--
+function Zmp:start()
+  return up.samples[self.id].start
+end
+
+--- Get the length of the sample.
+--
+function Zmp:length()
+  return up.samples[self.id].length
+end
+
+--- Get the end of the sample. (This has an odd name to avoid a keyword clash.)
+--
+function Zmp:endd()
+  return up.samples[self.id].start + up.samples[self.id].length
+end
+
+--- Get the name of the sample.
+--
+function Zmp:name()
+  return up.samples[self.id].name
+end
+
+-- This should happen right after it's set at the start of the script
+zamples.set_current(us.sample_cur)
