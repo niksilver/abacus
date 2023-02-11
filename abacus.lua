@@ -445,6 +445,7 @@ function update_beat()
       end
       goto continue
     end
+    us.update_ui = true
     clock.run(function()
       us.playing_beat=us.playing_beat+1
       if us.playing_beat>16 then
@@ -532,7 +533,6 @@ function update_beat()
           us.playing_pattern_segment=0
           us.playing_sample={0,0}
           us.playing_sampleid=0
-          us.update_ui=true
           return
         end
         if playing_pattern_segment==us.playing_pattern_segment then
@@ -552,7 +552,6 @@ function update_beat()
           current_level=1
           softcut.level(1,1)
         end
-        us.update_ui=true
       end
     end)
     ::continue::
@@ -960,7 +959,8 @@ function redraw()
     screen.text_center(us.message)
   end
 
-  screen.update()
+  -- Show beat
+  show_beat_counter()
 end
 
 --
@@ -1104,4 +1104,21 @@ function write_file(fname,data)
   io.close(file)
 end
 
+-- Show the beat counter.
+--
+function show_beat_counter()
+  local beat_main = (us.playing_beat-1) // 4 + 1
+  local beat_sub  = (us.playing_beat-1) % 4 + 1
+  if us.playing_beat < 1 or us.playing_beat > 16 then
+    beat_main = 0
+    beat_sub = 0
+  end
+  screen.level(beat_sub == 1 and 15 or 4)
+  screen.move(127 - 5*2, 8)
+  screen.text("." .. beat_sub)
+  local beat_main_width = screen.text_extents(tostring(beat_main))
+  screen.move(127 - 5*2 - beat_main_width - 1, 8)
+  screen.text(beat_main)
 
+  screen.update()
+end
