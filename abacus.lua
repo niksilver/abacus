@@ -467,7 +467,7 @@ function update_beat()
       local playing_pattern_segment=p[us.playing_beat]
       -- get sample id from the pattern segment
       -- local sample_id=math.floor(playing_pattern_segment)
-      local p_sample=Zmp:new(math.floor(playing_pattern_segment))
+      local pp_sample=Zmp:new(math.floor(playing_pattern_segment))
 
       -- do effects
       effect_slow=us.effect_slow or math.random()<params:get("effect_slow")
@@ -522,7 +522,7 @@ function update_beat()
           softcut.level(3,0)
         end
       elseif not us.effect_on then
-        if not p_sample:is_real() then
+        if not pp_sample:is_real() then
           if current_level==1 then
             current_level=0
             softcut.level(1,0)
@@ -536,12 +536,12 @@ function update_beat()
         end
         us.playing_pattern_segment=playing_pattern_segment
         -- play sample
-        if p_sample:endd()~=us.playing_loop_end then
-          us.playing_loop_end=p_sample:endd()
+        if pp_sample:endd()~=us.playing_loop_end then
+          us.playing_loop_end=pp_sample:endd()
           --  softcut.loop_end(1,us.playing_loop_end)
         end
-        zamples.set_playing_sample(p_sample)
-        softcut.position(1,p_sample:start())
+        zamples.set_playing_sample(pp_sample)
+        softcut.position(1,pp_sample:start())
         if current_level==0 then
           current_level=1
           softcut.level(1,1)
