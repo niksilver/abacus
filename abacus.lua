@@ -640,7 +640,7 @@ function enc(n,d)
     us.mode=util.clamp(us.mode+sign(d),0,2)
     if us.mode==1 then
       -- figure out which samples are usable
-      zamples.set_usable()
+      uzable.set()
       us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
     end
   elseif n==1 and us.mode==0 then
@@ -658,9 +658,7 @@ function enc(n,d)
     zamples.shift_length(x)
     sample_one_shot_update()
   elseif n==2 and us.mode==1 then
-    us.samples_usable_id=util.clamp(us.samples_usable_id+sign(d),1,#us.samples_usable)
-    zamples.set_current(us.samples_usable[us.samples_usable_id])
-    us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
+    uzable.update_current(sign(d))
   elseif n==3 and us.mode==1 then
     -- change start position
     us.pattern_temp.start=util.clamp(us.pattern_temp.start+sign(d),1,16)
@@ -939,13 +937,8 @@ end
 function process_stream(v)
   if params:get("crow_mode") == 2 then 
     -- sample mode 
-    us.samples_usable={}
-    for i=1,#up.samples do
-      if up.samples[i].length>0 then
-        table.insert(us.samples_usable,i)
-      end
-    end
-    us.crow_sample_cur = us.samples_usable[util.round(util.linlin(-10,10,1,#us.samples_usable,v))]
+    uzable.set()
+    us.crow_sample_cur = uzable.get_from_crow(v)
     local s=up.samples[us.crow_sample_cur].start
     local e=up.samples[us.crow_sample_cur].start+up.samples[us.crow_sample_cur].length
     us.playing_sample={s,e}
@@ -1151,17 +1144,6 @@ zamples.playing_sample_end = function()
   return us.playing_sample[2]
 end
 
---- Set the usable samples - ie those which have some positive length.
---
-zamples.set_usable = function()
-  us.samples_usable={}
-  for i=1,#up.samples do
-    if up.samples[i].length>0 then
-      table.insert(us.samples_usable,i)
-    end
-  end
-end
-
 --- Set the currently selected sample (as shown in the first box).
 -- After this, zamples.current will the the Zmp of the given sample.
 -- @tparam number i    The ID of the sample.
@@ -1288,6 +1270,39 @@ wavz.update_view = function(pos1, pos2)
   us.waveform_view={pos1,pos2}
   -- render new waveform
   softcut.render_buffer(1,pos1,pos2-pos1,128)
+end
+
+-- uzable is a set of convenience functions for dealing with
+-- usable samples - ie those with length > 0.
+
+uzable = {}
+
+--- Set the usable samples - ie those which have some positive length.
+--
+uzable.set = function()
+  us.samples_usable={}
+  for i=1,#up.samples do
+    if up.samples[i].length>0 then
+      table.insert(us.samples_usable,i)
+    end
+  end
+end
+
+--- Update the current usable sample to be a nearby usable sample.
+-- @tparam number d    The delta to add to the current sample ID.
+--
+uzable.update_current = function(d)
+  us.samples_usable_id=util.clamp(us.samples_usable_id+d,1,#us.samples_usable)
+  zamples.set_current(us.samples_usable[us.samples_usable_id])
+  us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
+end
+
+--- Choose a usable sample mapped from a given crow input (-10 to +10).
+-- @tparam number v    The crow input (-10 to +10).
+-- @treturn {number}    The ID of matching sample.
+--
+uzable.get_from_crow = function(v)
+    return us.samples_usable[util.round(util.linlin(-10,10,1,#us.samples_usable,v))]
 end
 
 -- This should happen right after it's set at the start of the script
