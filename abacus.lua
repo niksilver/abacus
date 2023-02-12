@@ -417,7 +417,7 @@ function update_positions(i,x)
 end
 
 function update_render(ch,start,i,s)
-  zamples.set_waveform(i, s)
+  wavz.set(i, s)
   us.update_ui=true
 end
 
@@ -1114,17 +1114,6 @@ zamples.wipe_all = function()
   end
 end
 
---- Set the waveform to be rendered when the screen is
--- next updated
--- @tparam number i    Duration of the sample in seconds.
--- @tparam table s    A table of values from -1 to 1.
--- @see https://monome.org/docs/norns/softcut/#8-copy--waveform-data
---
-zamples.set_waveform = function(i, s)
-  us.waveform_samples=s
-  us.interval=i
-end
-
 --- Is a sample playing?
 -- @return {bool}
 --
@@ -1280,6 +1269,16 @@ end
 --
 wavz.view_end = function()
   return us.waveform_view[2]
+end
+
+--- Set the waveform to be rendered when the screen is next updated.
+-- @tparam number i    Duration of the sample in seconds.
+-- @tparam table s    A table of values from -1 to 1.
+-- @see https://monome.org/docs/norns/softcut/#8-copy--waveform-data
+--
+wavz.set = function(i, s)
+  us.waveform_samples=s
+  us.interval=i
 end
 
 -- This should happen right after it's set at the start of the script
