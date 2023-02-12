@@ -52,7 +52,7 @@ us={
   waveform_view={0,0},
   interval=0,
   scale=0,
-  sample_cur=1,
+  sample_cur=1,    -- Currently selected sample
   pattern_cur=1,
   chain_cur=1,
   pattern_temp={start=1,length=1},
@@ -656,26 +656,12 @@ function enc(n,d)
     us.pattern_cur=util.clamp(us.pattern_cur+sign(d),1,8)
   elseif n==2 and us.mode==0 then
     local x=d*up.length/1000
-    up.samples[us.sample_cur].start=util.clamp(zamples.current:start()+x,0,up.length)
-    if zamples.current:length()==0 then
-      up.samples[us.sample_cur].length=clock.get_beat_sec()/4
-      up.samples[us.sample_cur].start=util.clamp(zamples.current:start(),us.waveform_view[1],up.length)
-    end
-    local new_end=zamples.current:endd()
-    if zamples.current:start()<us.waveform_view[1] then
-      update_waveform_view(zamples.current:start(),us.waveform_view[2]+(zamples.current:start()-us.waveform_view[1]))
-    elseif new_end>us.waveform_view[2] then
-      update_waveform_view(us.waveform_view[1]+(new_end-us.waveform_view[2]),new_end)
-    end
+    zamples.shift_start(x)
     sample_one_shot_update()
   elseif n==3 and us.mode==0 then
     -- local x=d*clock.get_beat_sec()/4
     local x=d*up.length/1000
-    up.samples[us.sample_cur].length=util.clamp(zamples.current:length()+x,0,up.length-zamples.current:start())
-    if zamples.current:endd() > us.waveform_view[2] then
-      update_waveform_view(zamples.current:start(),zamples.current:endd())
-    end
-    us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
+    zamples.shift_length(x)
     sample_one_shot_update()
   elseif n==2 and us.mode==1 then
     us.samples_usable_id=util.clamp(us.samples_usable_id+sign(d),1,#us.samples_usable)
@@ -1193,7 +1179,7 @@ zamples.set_usable = function()
   end
 end
 
---- Set the current sample.
+--- Set the currently selected sample (as shown in the first box).
 -- After this, zamples.current will the the Zmp of the given sample.
 -- @tparam number i    The ID of the sample.
 --
@@ -1202,6 +1188,35 @@ zamples.set_current = function(i)
   -- sample. It's an object in zamples, and a number in the user state.
   zamples.current = Zmp:new(i)
   us.sample_cur = i
+end
+
+--- Shift the start of the currently selected sample. The length will
+-- stay the same.
+-- @tparam number x    The number of seconds to shift. Can be negative.
+--
+zamples.shift_start = function(x)
+  up.samples[us.sample_cur].start=util.clamp(zamples.current:start()+x,0,up.length)
+  if zamples.current:length()==0 then
+    up.samples[us.sample_cur].length=clock.get_beat_sec()/4
+    up.samples[us.sample_cur].start=util.clamp(zamples.current:start(),us.waveform_view[1],up.length)
+  end
+  local new_end=zamples.current:endd()
+  if zamples.current:start()<us.waveform_view[1] then
+    update_waveform_view(zamples.current:start(),us.waveform_view[2]+(zamples.current:start()-us.waveform_view[1]))
+  elseif new_end>us.waveform_view[2] then
+    update_waveform_view(us.waveform_view[1]+(new_end-us.waveform_view[2]),new_end)
+  end
+end
+
+--- Shift the length of the currently selected sample.
+-- @tparam number x    The number of seconds to shift. Can be negative.
+--
+zamples.shift_length = function(x)
+  up.samples[us.sample_cur].length=util.clamp(zamples.current:length()+x,0,up.length-zamples.current:start())
+  if zamples.current:endd() > us.waveform_view[2] then
+    update_waveform_view(zamples.current:start(),zamples.current:endd())
+  end
+  us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
 end
 
 -- Convenient representation of a single sample.
