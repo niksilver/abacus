@@ -1183,11 +1183,14 @@ zamples.shift_start = function(x)
     up.samples[us.sample_cur].length=clock.get_beat_sec()/4
     up.samples[us.sample_cur].start=util.clamp(zamples.current:start(),wavz.view_start(),up.length)
   end
+
   local new_end=zamples.current:endd()
-  if zamples.current:start()<wavz.view_start() then
-    wavz.update_view(zamples.current:start(),wavz.view_end()+(zamples.current:start()-wavz.view_start()))
-  elseif new_end>wavz.view_end() then
-    wavz.update_view(wavz.view_start()+(new_end-wavz.view_end()),new_end)
+  if zamples.current:start() < wavz.view_start() then
+    local new_new_end = wavz.view_end() + zamples.current:start() - wavz.view_start()
+    wavz.update_view(zamples.current:start(), new_new_end)
+  elseif new_end > wavz.view_end() then
+    local new_start = wavz.view_start() + (new_end - wavz.view_end())
+    wavz.update_view(new_start, new_end)
   end
 end
 
@@ -1197,7 +1200,7 @@ end
 zamples.shift_length = function(x)
   up.samples[us.sample_cur].length=util.clamp(zamples.current:length()+x,0,up.length-zamples.current:start())
   if zamples.current:endd() > wavz.view_end() then
-    wavz.update_view(zamples.current:start(),zamples.current:endd())
+    wavz.update_view(zamples.current:start(), zamples.current:endd())
   end
   us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
 end
