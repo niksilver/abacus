@@ -726,7 +726,7 @@ function key(n,z)
     end
     us.playing=not us.playing
   elseif n==2 and z==1 and us.mode==0 then
-    if zamples.current:start()==us.waveform_view[1] and zamples.current:endd()==us.waveform_view[2] then
+    if zamples.current:start()==wavz.view_start() and zamples.current:endd()==wavz.view_end() then
       update_waveform_view(0,up.length)
     else
       print("zooming to "..zamples.current:start()..","..zamples.current:endd())
@@ -876,7 +876,7 @@ function redraw()
     local scale=19
     for i,s in ipairs(us.waveform_samples) do
       local height=util.round(math.abs(s)*scale)
-      local current_time=util.linlin(0,128,us.waveform_view[1],us.waveform_view[2],x_pos)
+      local current_time=util.linlin(0,128,wavz.view_start(),wavz.view_end(),x_pos)
       if current_time>zamples.playing_sample_start() and current_time<zamples.playing_sample_end() then
         screen.level(15)
       else
@@ -889,9 +889,9 @@ function redraw()
     end
     screen.level(15)
     for i,s in ipairs(up.samples) do
-      if (i==us.sample_cur or i==us.playing_sampleid) and s.length>0 and (s.start>=us.waveform_view[1] and s.start<=us.waveform_view[2]) then
-        x_pos=util.linlin(us.waveform_view[1],us.waveform_view[2],1,128,s.start)
-        if us.waveform_view[1]~=s.start then
+      if (i==us.sample_cur or i==us.playing_sampleid) and s.length>0 and (s.start>=wavz.view_start() and s.start<=wavz.view_end()) then
+        x_pos=util.linlin(wavz.view_start(),wavz.view_end(),1,128,s.start)
+        if wavz.view_start()~=s.start then
           screen.move(x_pos-3,26)
         else
           screen.move(x_pos+4,26)
@@ -903,7 +903,7 @@ function redraw()
         screen.line_rel(3,3)
         screen.move(x_pos,29)
         screen.line_rel(3,-3)
-        x_pos=util.linlin(us.waveform_view[1],us.waveform_view[2],1,128,s.start+s.length)
+        x_pos=util.linlin(wavz.view_start(),wavz.view_end(),1,128,s.start+s.length)
         screen.move(x_pos,29)
         screen.line_rel(0,34)
         --   if us.waveform_view[1] == s.start then
@@ -1198,13 +1198,13 @@ zamples.shift_start = function(x)
   up.samples[us.sample_cur].start=util.clamp(zamples.current:start()+x,0,up.length)
   if zamples.current:length()==0 then
     up.samples[us.sample_cur].length=clock.get_beat_sec()/4
-    up.samples[us.sample_cur].start=util.clamp(zamples.current:start(),us.waveform_view[1],up.length)
+    up.samples[us.sample_cur].start=util.clamp(zamples.current:start(),wavz.view_start(),up.length)
   end
   local new_end=zamples.current:endd()
-  if zamples.current:start()<us.waveform_view[1] then
-    update_waveform_view(zamples.current:start(),us.waveform_view[2]+(zamples.current:start()-us.waveform_view[1]))
-  elseif new_end>us.waveform_view[2] then
-    update_waveform_view(us.waveform_view[1]+(new_end-us.waveform_view[2]),new_end)
+  if zamples.current:start()<wavz.view_start() then
+    update_waveform_view(zamples.current:start(),wavz.view_end()+(zamples.current:start()-wavz.view_start()))
+  elseif new_end>wavz.view_end() then
+    update_waveform_view(wavz.view_start()+(new_end-wavz.view_end()),new_end)
   end
 end
 
@@ -1213,7 +1213,7 @@ end
 --
 zamples.shift_length = function(x)
   up.samples[us.sample_cur].length=util.clamp(zamples.current:length()+x,0,up.length-zamples.current:start())
-  if zamples.current:endd() > us.waveform_view[2] then
+  if zamples.current:endd() > wavz.view_end() then
     update_waveform_view(zamples.current:start(),zamples.current:endd())
   end
   us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
@@ -1262,6 +1262,24 @@ end
 --
 function Zmp:name()
   return up.samples[self.id].name
+end
+
+-- wavz is just a handy collection of waveform-related functions.
+
+wavz = {}
+
+--- The start of the waveform view.
+-- @treturn {number}    Point the buffer that's the start of the waveform.
+--
+wavz.view_start = function()
+  return us.waveform_view[1]
+end
+
+--- The end of the waveform view.
+-- @treturn {number}    Point the buffer that's the end of the waveform.
+--
+wavz.view_end = function()
+  return us.waveform_view[2]
 end
 
 -- This should happen right after it's set at the start of the script
