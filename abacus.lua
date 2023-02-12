@@ -556,12 +556,6 @@ function update_parameters()
 
 end
 
-function update_waveform_view(pos1,pos2)
-  us.waveform_view={pos1,pos2}
-  -- render new waveform
-  softcut.render_buffer(1,pos1,pos2-pos1,128)
-end
-
 --
 -- pattern controls
 --
@@ -585,7 +579,7 @@ function load_sample(filename)
   softcut.loop_start(1,0)
   softcut.loop_end(1,up.length)
   softcut.loop(1,1)
-  update_waveform_view(0,up.length)
+  wavz.update_view(0,up.length)
 end
 
 function sample_one_shot(z)
@@ -727,10 +721,10 @@ function key(n,z)
     us.playing=not us.playing
   elseif n==2 and z==1 and us.mode==0 then
     if zamples.current:start()==wavz.view_start() and zamples.current:endd()==wavz.view_end() then
-      update_waveform_view(0,up.length)
+      wavz.update_view(0,up.length)
     else
       print("zooming to "..zamples.current:start()..","..zamples.current:endd())
-      update_waveform_view(zamples.current:start(),zamples.current:endd())
+      wavz.update_view(zamples.current:start(),zamples.current:endd())
     end
   elseif n==2 and z==1 and us.mode==1 and us.shift then
     -- make new pattern
@@ -1191,9 +1185,9 @@ zamples.shift_start = function(x)
   end
   local new_end=zamples.current:endd()
   if zamples.current:start()<wavz.view_start() then
-    update_waveform_view(zamples.current:start(),wavz.view_end()+(zamples.current:start()-wavz.view_start()))
+    wavz.update_view(zamples.current:start(),wavz.view_end()+(zamples.current:start()-wavz.view_start()))
   elseif new_end>wavz.view_end() then
-    update_waveform_view(wavz.view_start()+(new_end-wavz.view_end()),new_end)
+    wavz.update_view(wavz.view_start()+(new_end-wavz.view_end()),new_end)
   end
 end
 
@@ -1203,7 +1197,7 @@ end
 zamples.shift_length = function(x)
   up.samples[us.sample_cur].length=util.clamp(zamples.current:length()+x,0,up.length-zamples.current:start())
   if zamples.current:endd() > wavz.view_end() then
-    update_waveform_view(zamples.current:start(),zamples.current:endd())
+    wavz.update_view(zamples.current:start(),zamples.current:endd())
   end
   us.pattern_temp.length=util.round(zamples.current:length()/(clock.get_beat_sec()/4))
 end
@@ -1279,6 +1273,18 @@ end
 wavz.set = function(i, s)
   us.waveform_samples=s
   us.interval=i
+end
+
+--- Update the waveform view.
+-- This will eventually lead to a callback to whatever has been set in
+-- `softcut.event_render`.
+-- @tparam number pos1    Start of the waveform view.
+-- @tparam number pos2    End of the waveform view.
+--
+wavz.update_view = function(pos1, pos2)
+  us.waveform_view={pos1,pos2}
+  -- render new waveform
+  softcut.render_buffer(1,pos1,pos2-pos1,128)
 end
 
 -- This should happen right after it's set at the start of the script
