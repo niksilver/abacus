@@ -862,53 +862,8 @@ function redraw()
 
   -- plot waveform
   -- https://github.com/monome/softcut-studies/blob/master/8-copy.lua
-  if #us.waveform_samples>0 then
-    screen.level(4)
-    local x_pos=0
-    local scale=19
-    for i,s in ipairs(us.waveform_samples) do
-      local height=util.round(math.abs(s)*scale)
-      local current_time=util.linlin(0,128,wavz.view_start(),wavz.view_end(),x_pos)
-      if current_time>zamples.playing_sample_start() and current_time<zamples.playing_sample_end() then
-        screen.level(15)
-      else
-        screen.level(4)
-      end
-      screen.move(i,45-height)
-      screen.line_rel(0,2*height)
-      screen.stroke()
-      x_pos=x_pos+1
-    end
-    screen.level(15)
-    for i,s in ipairs(up.samples) do
-      if (i==us.sample_cur or i==us.playing_sampleid) and s.length>0 and (s.start>=wavz.view_start() and s.start<=wavz.view_end()) then
-        x_pos=util.linlin(wavz.view_start(),wavz.view_end(),1,128,s.start)
-        if wavz.view_start()~=s.start then
-          screen.move(x_pos-3,26)
-        else
-          screen.move(x_pos+4,26)
-        end
-        screen.text(up.samples[i].name)
-        screen.move(x_pos,29)
-        screen.line_rel(0,34)
-        screen.move(x_pos,62)
-        screen.line_rel(3,3)
-        screen.move(x_pos,29)
-        screen.line_rel(3,-3)
-        x_pos=util.linlin(wavz.view_start(),wavz.view_end(),1,128,s.start+s.length)
-        screen.move(x_pos,29)
-        screen.line_rel(0,34)
-        --   if us.waveform_view[1] == s.start then
-        --   screen.move(x_pos+1,64)
-        --   screen.text(up.samples[i].name)
-        -- end
-        screen.move(x_pos,62)
-        screen.line_rel(-3,3)
-        screen.move(x_pos,29)
-        screen.line_rel(-3,-3)
-      end
-    end
-    screen.stroke()
+  if wavz.have_current() then
+    wavz.draw_current()
   end
 
   -- show message if exists
@@ -1270,6 +1225,63 @@ wavz.update_view = function(pos1, pos2)
   us.waveform_view={pos1,pos2}
   -- render new waveform
   softcut.render_buffer(1,pos1,pos2-pos1,128)
+end
+
+-- Do we have a current waveform?
+--
+wavz.have_current = function()
+    return #us.waveform_samples>0
+end
+
+-- Draw the current waveform
+--
+wavz.draw_current = function()
+  screen.level(4)
+  local x_pos=0
+  local scale=19
+  for i,s in ipairs(us.waveform_samples) do
+    local height=util.round(math.abs(s)*scale)
+    local current_time=util.linlin(0,128,wavz.view_start(),wavz.view_end(),x_pos)
+    if current_time>zamples.playing_sample_start() and current_time<zamples.playing_sample_end() then
+      screen.level(15)
+    else
+      screen.level(4)
+    end
+    screen.move(i,45-height)
+    screen.line_rel(0,2*height)
+    screen.stroke()
+    x_pos=x_pos+1
+  end
+  screen.level(15)
+  for i,s in ipairs(up.samples) do
+    if (i==us.sample_cur or i==us.playing_sampleid) and s.length>0 and (s.start>=wavz.view_start() and s.start<=wavz.view_end()) then
+      x_pos=util.linlin(wavz.view_start(),wavz.view_end(),1,128,s.start)
+      if wavz.view_start()~=s.start then
+        screen.move(x_pos-3,26)
+      else
+        screen.move(x_pos+4,26)
+      end
+      screen.text(up.samples[i].name)
+      screen.move(x_pos,29)
+      screen.line_rel(0,34)
+      screen.move(x_pos,62)
+      screen.line_rel(3,3)
+      screen.move(x_pos,29)
+      screen.line_rel(3,-3)
+      x_pos=util.linlin(wavz.view_start(),wavz.view_end(),1,128,s.start+s.length)
+      screen.move(x_pos,29)
+      screen.line_rel(0,34)
+      --   if us.waveform_view[1] == s.start then
+      --   screen.move(x_pos+1,64)
+      --   screen.text(up.samples[i].name)
+      -- end
+      screen.move(x_pos,62)
+      screen.line_rel(-3,3)
+      screen.move(x_pos,29)
+      screen.line_rel(-3,-3)
+    end
+  end
+  screen.stroke()
 end
 
 -- uzable is a set of convenience functions for dealing with
