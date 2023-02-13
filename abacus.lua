@@ -532,7 +532,7 @@ function update_beat()
         if playing_pattern_segment==patz.get_playing_segment() then
           return
         end
-        patz:set_playing_segment( playing_pattern_segment )
+        patz.set_playing_segment( playing_pattern_segment )
         -- play sample
         if pp_sample:endd()~=us.playing_loop_end then
           us.playing_loop_end=pp_sample:endd()
