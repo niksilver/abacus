@@ -401,10 +401,8 @@ function initialize_samples()
     chain={1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
   }
   -- initialize samples
-  zamples.wipe_all()
-  for i=1,8 do
-    up.patterns[i]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
-  end
+  zamples.init_all()
+  patz.init_all()
 end
 --
 -- updaters
@@ -429,7 +427,7 @@ end
 
 function update_beat()
   local current_voice=1
-  local p=up.patterns[1]
+  local p = patz.get_default()
   local current_level=0
   local is_slowing = false 
   while true do
@@ -458,13 +456,13 @@ function update_beat()
           if us.playing_chain>#up.chain or up.chain[us.playing_chain]==0 then
             us.playing_chain=1
           end
-          us.pattern_cur=up.chain[us.playing_chain]
+          patz.set_current( up.chain[us.playing_chain] )
         end
-        p=up.patterns[us.pattern_cur]
+        p = patz.get_current()
         us.playing_beat=1
       end
       -- if silence, continue
-      local playing_pattern_segment=p[us.playing_beat]
+      local playing_pattern_segment=patz.segment_for_beat(p)
       -- get sample id from the pattern segment
       -- local sample_id=math.floor(playing_pattern_segment)
       local pp_sample=Zmp:new(math.floor(playing_pattern_segment))
@@ -527,14 +525,14 @@ function update_beat()
             current_level=0
             softcut.level(1,0)
           end
-          us.playing_pattern_segment=0
+          patz.cancel_playing_segment()
           zamples.reset_playing_sample()
           return
         end
-        if playing_pattern_segment==us.playing_pattern_segment then
+        if playing_pattern_segment==patz.get_playing_segment() then
           return
         end
-        us.playing_pattern_segment=playing_pattern_segment
+        patz:set_playing_segment( playing_pattern_segment )
         -- play sample
         if pp_sample:endd()~=us.playing_loop_end then
           us.playing_loop_end=pp_sample:endd()
@@ -861,7 +859,6 @@ function redraw()
   end
 
   -- plot waveform
-  -- https://github.com/monome/softcut-studies/blob/master/8-copy.lua
   if wavz.have_current() then
     wavz.draw_current()
   end
@@ -1044,9 +1041,9 @@ end
 
 zamples = {}
 
---- Wipe all the samples in the user parameters.
+--- Initialise (zero) all the samples in the user parameters.
 --
-zamples.wipe_all = function()
+zamples.init_all = function()
   local alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   for i=1,26 do
     up.samples[i]={}
@@ -1236,6 +1233,7 @@ end
 -- Draw the current waveform
 --
 wavz.draw_current = function()
+  -- https://github.com/monome/softcut-studies/blob/master/8-copy.lua
   screen.level(4)
   local x_pos=0
   local scale=19
@@ -1315,6 +1313,68 @@ end
 --
 uzable.get_from_crow = function(v)
     return us.samples_usable[util.round(util.linlin(-10,10,1,#us.samples_usable,v))]
+end
+
+-- patz is a set of convenience functions for patterns.
+-- There can be up to eight patterns, each with sixteen segments.
+
+patz = {}
+
+--- Initialise all the patterns.
+--
+patz.init_all = function()
+  for i=1,8 do
+    up.patterns[i]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+  end
+end
+
+--- Get the default (first) pattern.
+-- @treturn {number}    An array of 16 numbers, which are segments.
+--
+patz.get_default = function()
+  return up.patterns[1]
+end
+
+--- Set the current pattern.
+-- @tparam number i   The index of which pattern should be current.
+--
+patz.set_current = function(i)
+  us.pattern_cur = i
+end
+
+--- Get the current pattern.
+-- @treturn {number}    An array of 16 numbers, which are segments.
+--
+patz.get_current = function()
+  return up.patterns[us.pattern_cur]
+end
+
+-- Get the playing pattern segment.
+-- @treturn {number}    The segment - an integer + random int decimal.
+--
+patz.get_playing_segment = function()
+  return us.playing_pattern_segment
+end
+
+-- Set the playing pattern segment.
+-- @tparam s    The new segment
+--
+patz.set_playing_segment = function(s)
+  us.playing_pattern_segment = s
+end
+
+-- Say there is no playing segment.
+--
+patz.cancel_playing_segment = function(s)
+  us.playing_pattern_segment = 0
+end
+
+--- Get the segment for the currently playing beat count.
+-- @tparam {array} p    The pattern.
+-- @treturn {number}    A segment ID - an integer + random int decimal.
+--
+patz.segment_for_beat = function(p)
+  return p[us.playing_beat]
 end
 
 -- This should happen right after it's set at the start of the script
